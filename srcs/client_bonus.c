@@ -1,0 +1,114 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   client_bonus.c                                     :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: aboudiba <aboudiba@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2023/12/27 21:57:40 by aboudiba          #+#    #+#             */
+/*   Updated: 2023/12/28 20:14:59 by aboudiba         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
+#include "../includes/minitalk.h"
+
+static void	ft_check_arg(int ac, char **av)
+{
+	if (ac != 3)
+	{
+		ft_putstr_fd("\033[1;31mError: Wrong number of arguments\n\n", 1);
+		ft_putstr_fd("\033[1;33mPrototype:\n\t", 1);
+		ft_putstr_fd("./client <PID> <Message>\033[1;0\n", 1);
+		exit(EXIT_FAILURE);
+	}
+	if (!ft_isalldigit(av[1]))
+	{
+		ft_putstr_fd("\033[1;31mError: PID must be a number\n\033[1;0m", 1);
+		exit(EXIT_FAILURE);
+	}
+}
+
+static int	**ft_char_to_bin(char *str)
+{
+	int	**ptr;
+	int	byte_index;
+	int	bit_index;
+	int	i;
+
+	byte_index = 0;
+	ptr = ft_calloc(ft_strlen(str) + 2, sizeof(int *));
+	if (!ptr)
+		return (NULL);
+	while (str[byte_index])
+	{
+		ptr[byte_index] = ft_calloc(8, sizeof(int));
+		if (!ptr[byte_index])
+			return (NULL);
+		bit_index = 7;
+		i = 0;
+		while (bit_index >= 0)
+		{
+			ptr[byte_index][i++] = (str[byte_index] >> bit_index) & 1;
+			bit_index--;
+		}
+		byte_index++;
+	}
+	ft_addnullterminator(ptr, byte_index);
+	return (ptr);
+}
+
+static void	ft_send_signal(int pid, int **ptr)
+{
+	int	byte_index;
+	int	bit_index;
+
+	byte_index = 0;
+	while (ptr[byte_index])
+	{
+		bit_index = 0;
+		while (bit_index < 8)
+		{
+			if (ptr[byte_index][bit_index] == 1)
+				kill(pid, SIGUSR1);
+			else if (ptr[byte_index][bit_index] == 0)
+				kill(pid, SIGUSR2);
+			bit_index++;
+			usleep(100);
+		}
+		byte_index++;
+	}
+}
+
+static void	ft_signal_handler(int sig)
+{
+	static int	bit_counter;
+
+	if (sig == SIGUSR1)
+	{
+		bit_counter++;
+		usleep(100);
+	}
+	else if (sig == SIGUSR2)
+	{
+		ft_putstr_fd("\033[1;32mMessage received by server\n\033[1;0m", 1);
+		exit(EXIT_SUCCESS);
+	}
+}
+
+int	main(int ac, char **av)
+{
+	int	pid;
+	int	**ptr;
+
+	ft_check_arg(ac, av);
+	if (av[2][0] == '\0')
+		ft_invalid_message();
+	pid = ft_atoi(av[1]);
+	ptr = ft_char_to_bin(av[2]);
+	signal(SIGUSR1, ft_signal_handler);
+	signal(SIGUSR2, ft_signal_handler);
+	ft_send_signal(pid, ptr);
+	while (1)
+		pause();
+	return (0);
+}
